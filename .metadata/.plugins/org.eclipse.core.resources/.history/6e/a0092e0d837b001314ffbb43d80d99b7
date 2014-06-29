@@ -1,0 +1,176 @@
+package com.prongs.autovolume;
+
+import java.util.concurrent.locks.ReentrantLock;
+
+import org.w3c.dom.Text;
+
+import android.os.Bundle;
+import android.os.Handler;
+import android.app.Activity;
+import android.content.Intent;
+import android.view.Menu;
+import android.view.View;
+import android.widget.EditText;
+import android.media.AudioFormat;
+import android.media.AudioRecord;
+import android.media.MediaRecorder;
+import com.jjoe64.graphview.*;
+import android.view.ViewGroup;
+
+public class MainActivity extends Activity {
+	private EditText ampText;
+	private AudioRecord record;
+	private int bufferSize;
+	RollingBuffer rollingBuffer;
+	private boolean shouldListen = false;
+	private final int sampleRate = 44100;
+	private final int numberOfSeconds = 10;
+	private final int maxBufferSize = sampleRate * numberOfSeconds;
+	private final Object recordLock = new Object();
+	private ReentrantLock lock = new ReentrantLock(true);
+	
+	private short[] shortTermbuffer;
+	
+	private Handler checkVolumeHandler = new Handler();
+	
+    @Override
+    protected void onCreate(Bundle savedInstanceState) {
+        super.onCreate(savedInstanceState);
+        setContentView(R.layout.activity_main);
+        
+        ampText = (EditText)findViewById(R.id.ampDisplay);
+        
+        GraphView graph = new LineGraphView(this, "h");
+        LinearLayout layout = (LinearLayout)findViewById(R.id.graph1);
+        layout.addView(graph);
+    }   
+    
+    private Runnable checkVolume = new Runnable() {
+    	@Override
+    	public void run() {			
+    		if (record != null) {
+    			extractAmp();    	
+    		}
+    		
+      		checkVolumeHandler.postDelayed(checkVolume, 1000);
+    	}
+    };
+
+    @Override
+    public boolean onCreateOptionsMenu(Menu menu) {
+        // Inflate the menu; this adds items to the action bar if it is present.
+        getMenuInflater().inflate(R.menu.main, menu);
+        return true;
+    }
+    
+    public void volume100_Click(View view) {
+    	Intent intent = new Intent("org.leetzone.android.yatsewidget.ACTION_MEDIA_COMMAND");
+    	intent.putExtra("org.leetzone.android.yatsewidget.EXTRA_STRING_PARAMS", "volume");
+    	intent.putExtra("org.leetzone.android.yatsewidget.EXTRA_INT_PARAMS", 100);
+    	
+    	startService(intent);
+    }
+
+    public void volume90_Click(View view) {
+    	Intent intent = new Intent("org.leetzone.android.yatsewidget.ACTION_MEDIA_COMMAND");
+    	intent.putExtra("org.leetzone.android.yatsewidget.EXTRA_STRING_PARAMS", "volume");
+    	intent.putExtra("org.leetzone.android.yatsewidget.EXTRA_INT_PARAMS", 90);
+    	
+    	startService(intent);
+    }
+    
+    public void startListening_Click(View view) {
+    	if (record == null) {
+    		lock.lock();
+    		
+    		bufferSize = AudioRecord.getMinBufferSize(sampleRate,  AudioFormat.CHANNEL_CONFIGURATION_MONO, AudioFormat.ENCODING_PCM_16BIT);
+			record = new AudioRecord(MediaRecorder.AudioSource.MIC, sampleRate, AudioFormat.CHANNEL_CONFIGURATION_MONO, AudioFormat.ENCODING_PCM_16BIT, bufferSize);
+			
+			shortTermbuffer = new short[bufferSize];
+			//Using short which is two bytes, but we don't care about chunking
+        	rollingBuffer = new RollingBuffer(maxBufferSize, 1);
+        	
+        	lock.unlock();
+        	
+        	Runnable audioReader = new Runnable() {
+        		public void run() {
+        			short[] buffer = new short[bufferSize];
+                	int bufferReadResult;
+        			
+        			while(true) {
+        				lock.lock();
+        				
+        				if (!shouldListen) {
+        					try {
+								Thread.sleep(1000);
+							} catch (InterruptedException e) {	
+							}
+        					continue;
+        				}        				
+    				
+        				bufferReadResult = 0;
+        				while (bufferSize > bufferReadResult)
+        	            {
+        	                bufferReadResult = bufferReadResult + 
+        	                        record.read(buffer, bufferReadResult, bufferSize - bufferReadResult);
+        	            }   
+	        	            
+    				    rollingBuffer.AddData(buffer, bufferReadResult);        	            	        				
+        				
+    					lock.unlock();
+        			}        			
+        		}        	
+        	};
+        	
+        	
+        	Thread thread = new Thread(audioReader);
+        	thread.start();
+
+
+    	}
+    	
+    	shouldListen = true;
+    	record.startRecording();
+
+        checkVolume.run();
+    }
+    
+    public void stopListening_Click(View view) {
+    	if (record != null) {    
+			lock.lock();
+			
+			shouldListen = false;
+			record.stop();
+			record.release();
+    		
+			lock.unlock();
+    	}
+    	
+    }
+    
+    private void extractAmp() {
+
+    	
+		short[] buffer = new short[maxBufferSize];
+		int dataReadCount;
+		lock.lock();
+		
+    	dataReadCount = rollingBuffer.GetData(buffer, maxBufferSize);
+		
+		lock.unlock();
+		
+		short max = 0;
+		short min = 0;
+		for (int i = 0; i < dataReadCount; i++) {
+			if (buffer[i] > max) {
+				max = buffer[i];
+			}
+			if (buffer[i] < min) {
+				min = buffer[i];
+			}
+		}
+		
+		int averageMax = ((max - min) / 2);
+		ampText.setText("Max: " + averageMax);
+    }
+}

@@ -1,0 +1,65 @@
+import java.security.InvalidParameterException;
+
+import org.junit.*;
+
+import com.prongs.autovolume.RollingBuffer;
+
+import junit.framework.TestCase;
+import org.junit.runner.RunWith;
+import static org.junit.Assert.*;
+
+
+public class TestRollingBuffer {
+	@Test
+	public void TestAddOverEdge() {
+		RollingBuffer buf = new RollingBuffer(10, 1);
+		
+		short[] buffer = new short[10];
+		int shortsTaken = buf.GetData(buffer, 1);
+		
+		assertEquals(0, (int)shortsTaken);
+		assertArrayEquals(new short[]{0,0,0,0,0,0,0,0,0,0}, buffer);
+		
+		buf.AddData(new short[]{1,1,1,1,1,0,1,1,1,1}, 10);
+		
+		shortsTaken = buf.GetData(buffer, 10);
+		assertEquals(10, shortsTaken);
+		assertArrayEquals(new short[]{1, 1,1,1,1,0,1,1,1,1}, buffer);
+		
+		buf.AddData(new short[]{0,1}, 2);
+		shortsTaken = buf.GetData(buffer, 10);
+		assertEquals(10, shortsTaken);
+		assertArrayEquals(new short[]{1,1,1,0,1,1,1,1,0,1}, buffer);
+	}
+	
+	@Test
+	public void TestWrapAround() {
+		RollingBuffer buf = new RollingBuffer(5, 1);
+		buf.AddData(new short[]{1, 1,1,1,1,1}, 5);
+		buf.AddData(new short[]{1, 1,0,1,1}, 5);
+		short[] outputData = new short[5];
+		int read = buf.GetData(outputData, 5);
+		assertEquals(5, read);
+		assertArrayEquals(new short[]{1,1,0,1,1}, outputData);
+	}
+		
+	@Test
+	public void TestAddWithChunkRestriction() {
+		RollingBuffer buf = new RollingBuffer(10, 2);
+		int taken = buf.AddData(new short[]{0,1,1}, 1);
+		assertEquals(0, (int)taken);
+		taken = buf.AddData(new short[]{0,1,1}, 3);
+		assertEquals(2, (int)taken);
+	}
+	
+	@Test
+	public void TestTakeWithChunkRestriction() {
+		RollingBuffer buf = new RollingBuffer(10, 2);
+		buf.AddData(new short[]{0,1,1,0}, 4);
+		
+		short[] outputBuffer = new short[4];
+		int taken = buf.GetData(outputBuffer, 3);
+		assertEquals(2, (int)taken);
+		assertArrayEquals(new short[]{0,1,0,0}, outputBuffer);
+	}
+}

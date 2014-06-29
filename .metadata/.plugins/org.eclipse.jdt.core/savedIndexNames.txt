@@ -1,0 +1,6 @@
+INDEX VERSION 1.126+C:\Source\Android\AutoVolume\.metadata\.plugins\org.eclipse.jdt.core
+2290081318.index
+1634358503.index
+757757360.index
+3251201981.index
+2031089236.index

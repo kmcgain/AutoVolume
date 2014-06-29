@@ -1,0 +1,57 @@
+package com.prongs.autovolume;
+
+import java.nio.Buffer;
+import java.security.InvalidAlgorithmParameterException;
+import java.security.InvalidParameterException;
+
+public class RollingBuffer {
+	byte[] buffer;
+	int bufferSize;
+	int chunkSize;
+	
+	int head;
+	int tail;
+	boolean firstWrite = true;
+	
+	public RollingBuffer(int bufferSize, int chunkSize) {
+		this.bufferSize = bufferSize;
+		this.chunkSize = chunkSize;
+		this.buffer = new byte[bufferSize];
+		head = 0;
+		tail = 0;
+	}
+	
+	public void AddData(byte[] inputBytes, int bytesToTake) throws InvalidParameterException {
+		if (bytesToTake > buffer.length || bytesToTake > bufferSize) {
+			throw new InvalidParameterException();
+		}
+		
+		for (int i = 0; i < bytesToTake; i++) {
+			if (!firstWrite && tail == head) {
+				head += chunkSize;
+				firstWrite = false;
+			}			
+			buffer[tail++] = inputBytes[i];
+			if (tail == bufferSize) {
+				tail = 0;
+			}
+			
+		}
+	}
+	
+	public int GetBytes(byte[] outputBuffer, int bytesToTake)
+	{
+		int cursor = head;
+		int taken = 0;
+		while (cursor != tail && taken < bytesToTake)
+		{
+			outputBuffer[taken++] = buffer[cursor++];
+			if (cursor == bufferSize) {
+				cursor = 0;
+			}
+		}
+		
+		return taken;
+	}
+	
+}

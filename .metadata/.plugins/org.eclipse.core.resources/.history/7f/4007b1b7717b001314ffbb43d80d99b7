@@ -1,0 +1,67 @@
+package com.prongs.autovolume;
+
+import java.nio.Buffer;
+import java.security.InvalidAlgorithmParameterException;
+import java.security.InvalidParameterException;
+
+public class RollingBuffer {
+	byte[] buffer;
+	int bufferSize;
+	int chunkSize;
+	boolean isEmpty = true;
+	
+	int head;
+	int tail;
+	
+	public RollingBuffer(int bufferSize, int chunkSize) {
+		this.bufferSize = bufferSize;
+		this.chunkSize = chunkSize;
+		this.buffer = new byte[bufferSize];
+		head = 0;
+		tail = 0;
+	}
+	
+	public int AddData(byte[] inputBytes, int bytesToTake) throws InvalidParameterException {
+		if (bytesToTake > buffer.length || bytesToTake > bufferSize) {
+			throw new InvalidParameterException();
+		}
+		int indexToTake = bytesToTake - (bytesToTake % chunkSize);
+		
+		for (int i = 0; i < indexToTake; i++) {
+			if (!isEmpty && tail == head) {
+				head += chunkSize;
+			}			
+			buffer[tail++] = inputBytes[i];
+			if (tail == bufferSize) {
+				tail = 0;
+			}			
+		}
+		
+		isEmpty = !(indexToTake > 0);		
+		return indexToTake;
+	}
+	
+	public int GetBytes(byte[] outputBuffer, int bytesToTake)
+	{
+		if (isEmpty) {
+			return 0;
+		}
+		
+		int indexToTake = bytesToTake - (bytesToTake % chunkSize);
+		
+		int cursor = head;
+		boolean isFirstCheck = true;
+		int taken = 0;
+		while ((cursor != tail || isFirstCheck) && taken < indexToTake)
+		{
+			isFirstCheck = false;
+			outputBuffer[taken++] = buffer[cursor++];
+			if (cursor == bufferSize) {
+				cursor = 0;
+			}
+		}
+		
+		return taken;
+	}
+	
+}

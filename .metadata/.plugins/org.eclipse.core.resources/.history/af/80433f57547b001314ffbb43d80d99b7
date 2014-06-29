@@ -1,0 +1,15 @@
+import com.prongs.autovolume.RollingBuffer;
+
+import junit.framework.TestCase;
+
+
+public class TestRollingBuffer extends TestCase {
+	@Test
+	public void TestAdd() {
+		RollingBuffer buf = new RollingBuffer(10, 1);
+		buf.AddData(new byte[]{1,1,1,1,1,0,1,1,1,1}, 10);
+		
+		byte[] outputBuf = buf.GetData();
+		assertEquals(new byte[]{1, 1,1,1,1,0,1,1,1,1}, outputBuf);
+	}
+}
